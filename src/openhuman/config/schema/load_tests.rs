@@ -1427,16 +1427,23 @@ async fn config_secrets_encrypted_on_save_decrypted_on_load() {
          Raw contents:\n{raw_contents}"
     );
 
-    // Verify the backup file also contains encrypted data, not plaintext.
+    // Save again — this exercises the backup path.  On the second save,
+    // the existing config.toml is copied to config.toml.bak before the
+    // atomic replace.  We must verify that the backup also contains
+    // encrypted data, not the plaintext secret.
+    cfg.save().await.unwrap();
+
     let backup_path = config_path.with_extension("toml.bak");
-    if backup_path.exists() {
-        let backup_contents = std::fs::read_to_string(&backup_path).unwrap();
-        assert!(
-            !backup_contents.contains(known_secret),
-            "SECURITY BUG: secret found in plaintext in config.toml.bak!\n\
-             Backup contents:\n{backup_contents}"
-        );
-    }
+    assert!(
+        backup_path.exists(),
+        "backup file config.toml.bak should exist after second save"
+    );
+    let backup_contents = std::fs::read_to_string(&backup_path).unwrap();
+    assert!(
+        !backup_contents.contains(known_secret),
+        "SECURITY BUG: secret found in plaintext in config.toml.bak!\n\
+         Backup contents:\n{backup_contents}"
+    );
 
     // Reload the config through load_or_init — secrets must decrypt back.
     let reloaded = load_or_init_for_workspace(tmp.path()).await;
