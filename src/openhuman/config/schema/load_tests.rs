@@ -1,4 +1,5 @@
 use super::*;
+use crate::openhuman::config::schema::{StreamMode, TelegramConfig};
 
 #[test]
 fn read_active_user_returns_none_when_no_file() {
@@ -1383,5 +1384,49 @@ fn migrate_legacy_inference_url_is_noop_when_inference_url_set() {
     assert_eq!(
         cfg.inference_url.as_deref(),
         Some("https://existing.example/v1/chat/completions")
+    );
+}
+
+/// Regression test for #1900: secrets (channel tokens, API keys) are stored in
+/// plaintext in config.toml because `encrypt_optional_secret` is never called
+/// during `Config::save()`.
+///
+/// This test **should fail** in the current codebase, proving the bug. Once
+/// `encrypt_optional_secret` / `decrypt_optional_secret` are wired into the
+/// save/load paths, this test will pass.
+#[tokio::test]
+async fn config_secrets_are_not_stored_in_plaintext() {
+    let tmp = tempfile::tempdir().unwrap();
+    let config_path = tmp.path().join("config.toml");
+
+    // Build a config with a known channel secret.
+    let known_secret = "my-telegram-bot-token-abc123";
+    let mut cfg = Config {
+        config_path: config_path.clone(),
+        workspace_dir: tmp.path().join("workspace"),
+        ..Default::default()
+    };
+    cfg.channels_config.telegram = Some(TelegramConfig {
+        bot_token: known_secret.to_string(),
+        allowed_users: vec!["@admin".to_string()],
+        stream_mode: StreamMode::Off,
+        draft_update_interval_ms: 1000,
+        silent_streaming: true,
+        mention_only: false,
+    });
+
+    // Save to disk.
+    cfg.save().await.unwrap();
+
+    // Read the raw file.
+    let raw_contents =
+        std::fs::read_to_string(&config_path).expect("config.toml should exist after save");
+
+    // BUG (#1900): secrets SHOULD NOT appear as plaintext in the config file.
+    // This assertion should FAIL because encrypt_optional_secret is never called.
+    assert!(
+        !raw_contents.contains(known_secret),
+        "SECURITY BUG #1900: secret '{known_secret}' found in plaintext in config.toml!\n\
+         Raw contents:\n{raw_contents}"
     );
 }
