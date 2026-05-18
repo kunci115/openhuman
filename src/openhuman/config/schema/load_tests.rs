@@ -1387,15 +1387,14 @@ fn migrate_legacy_inference_url_is_noop_when_inference_url_set() {
     );
 }
 
-/// Regression test for #1900: secrets (channel tokens, API keys) are stored in
-/// plaintext in config.toml because `encrypt_optional_secret` is never called
-/// during `Config::save()`.
+/// Regression test for #1900: secrets are encrypted on save and decrypted on load.
 ///
-/// This test **should fail** in the current codebase, proving the bug. Once
-/// `encrypt_optional_secret` / `decrypt_optional_secret` are wired into the
-/// save/load paths, this test will pass.
+/// Verifies that:
+/// 1. Channel tokens are NOT stored in plaintext on disk
+/// 2. The backup file (.bak) also contains encrypted data, not plaintext
+/// 3. Loading the config back decrypts secrets correctly
 #[tokio::test]
-async fn config_secrets_are_not_stored_in_plaintext() {
+async fn config_secrets_encrypted_on_save_decrypted_on_load() {
     let tmp = tempfile::tempdir().unwrap();
     let config_path = tmp.path().join("config.toml");
 
@@ -1415,18 +1414,41 @@ async fn config_secrets_are_not_stored_in_plaintext() {
         mention_only: false,
     });
 
-    // Save to disk.
+    // Save to disk (should encrypt secrets).
     cfg.save().await.unwrap();
 
-    // Read the raw file.
+    // Read the raw file — secrets must NOT appear in plaintext.
     let raw_contents =
         std::fs::read_to_string(&config_path).expect("config.toml should exist after save");
 
-    // BUG (#1900): secrets SHOULD NOT appear as plaintext in the config file.
-    // This assertion should FAIL because encrypt_optional_secret is never called.
     assert!(
         !raw_contents.contains(known_secret),
         "SECURITY BUG #1900: secret '{known_secret}' found in plaintext in config.toml!\n\
          Raw contents:\n{raw_contents}"
+    );
+
+    // Verify the backup file also contains encrypted data, not plaintext.
+    let backup_path = config_path.with_extension("toml.bak");
+    if backup_path.exists() {
+        let backup_contents = std::fs::read_to_string(&backup_path).unwrap();
+        assert!(
+            !backup_contents.contains(known_secret),
+            "SECURITY BUG: secret found in plaintext in config.toml.bak!\n\
+             Backup contents:\n{backup_contents}"
+        );
+    }
+
+    // Reload the config through load_or_init — secrets must decrypt back.
+    let reloaded = load_or_init_for_workspace(tmp.path()).await;
+    let reloaded_token = reloaded
+        .channels_config
+        .telegram
+        .as_ref()
+        .map(|t| t.bot_token.as_str());
+    assert_eq!(
+        reloaded_token,
+        Some(known_secret),
+        "decrypt path broken: reloaded bot_token '{reloaded_token:?}' \
+         does not match original '{known_secret}'"
     );
 }

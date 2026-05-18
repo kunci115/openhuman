@@ -397,28 +397,50 @@ fn decrypt_config_secrets(config: &mut Config, openhuman_dir: &Path) -> Result<(
     // Channels: decrypt every optional secret field.
     let ch = &mut config.channels_config;
     if let Some(ref mut tg) = ch.telegram {
-        decrypt_optional_secret(&store, &mut Some(tg.bot_token.clone()), "telegram.bot_token")?;
-        tg.bot_token = store.decrypt(&tg.bot_token).unwrap_or_else(|_| tg.bot_token.clone());
+        decrypt_optional_secret(
+            &store,
+            &mut Some(tg.bot_token.clone()),
+            "telegram.bot_token",
+        )?;
+        tg.bot_token = store
+            .decrypt(&tg.bot_token)
+            .unwrap_or_else(|_| tg.bot_token.clone());
     }
     if let Some(ref mut d) = ch.discord {
         decrypt_optional_secret(&store, &mut Some(d.bot_token.clone()), "discord.bot_token")?;
-        d.bot_token = store.decrypt(&d.bot_token).unwrap_or_else(|_| d.bot_token.clone());
+        d.bot_token = store
+            .decrypt(&d.bot_token)
+            .unwrap_or_else(|_| d.bot_token.clone());
     }
     if let Some(ref mut s) = ch.slack {
         decrypt_optional_secret(&store, &mut Some(s.bot_token.clone()), "slack.bot_token")?;
-        s.bot_token = store.decrypt(&s.bot_token).unwrap_or_else(|_| s.bot_token.clone());
+        s.bot_token = store
+            .decrypt(&s.bot_token)
+            .unwrap_or_else(|_| s.bot_token.clone());
         decrypt_optional_secret(&store, &mut s.app_token, "slack.app_token")?;
     }
     if let Some(ref mut m) = ch.mattermost {
-        decrypt_optional_secret(&store, &mut Some(m.bot_token.clone()), "mattermost.bot_token")?;
-        m.bot_token = store.decrypt(&m.bot_token).unwrap_or_else(|_| m.bot_token.clone());
+        decrypt_optional_secret(
+            &store,
+            &mut Some(m.bot_token.clone()),
+            "mattermost.bot_token",
+        )?;
+        m.bot_token = store
+            .decrypt(&m.bot_token)
+            .unwrap_or_else(|_| m.bot_token.clone());
     }
     if let Some(ref mut w) = ch.webhook {
         decrypt_optional_secret(&store, &mut w.secret, "webhook.secret")?;
     }
     if let Some(ref mut mx) = ch.matrix {
-        decrypt_optional_secret(&store, &mut Some(mx.access_token.clone()), "matrix.access_token")?;
-        mx.access_token = store.decrypt(&mx.access_token).unwrap_or_else(|_| mx.access_token.clone());
+        decrypt_optional_secret(
+            &store,
+            &mut Some(mx.access_token.clone()),
+            "matrix.access_token",
+        )?;
+        mx.access_token = store
+            .decrypt(&mx.access_token)
+            .unwrap_or_else(|_| mx.access_token.clone());
     }
     if let Some(ref mut wa) = ch.whatsapp {
         decrypt_optional_secret(&store, &mut wa.access_token, "whatsapp.access_token")?;
@@ -427,7 +449,9 @@ fn decrypt_config_secrets(config: &mut Config, openhuman_dir: &Path) -> Result<(
     }
     if let Some(ref mut lq) = ch.linq {
         decrypt_optional_secret(&store, &mut Some(lq.api_token.clone()), "linq.api_token")?;
-        lq.api_token = store.decrypt(&lq.api_token).unwrap_or_else(|_| lq.api_token.clone());
+        lq.api_token = store
+            .decrypt(&lq.api_token)
+            .unwrap_or_else(|_| lq.api_token.clone());
     }
     if let Some(ref mut irc) = ch.irc {
         decrypt_optional_secret(&store, &mut irc.server_password, "irc.server_password")?;
@@ -436,17 +460,31 @@ fn decrypt_config_secrets(config: &mut Config, openhuman_dir: &Path) -> Result<(
     }
     if let Some(ref mut lk) = ch.lark {
         decrypt_optional_secret(&store, &mut Some(lk.app_secret.clone()), "lark.app_secret")?;
-        lk.app_secret = store.decrypt(&lk.app_secret).unwrap_or_else(|_| lk.app_secret.clone());
+        lk.app_secret = store
+            .decrypt(&lk.app_secret)
+            .unwrap_or_else(|_| lk.app_secret.clone());
         decrypt_optional_secret(&store, &mut lk.encrypt_key, "lark.encrypt_key")?;
-        decrypt_optional_secret(&store, &mut lk.verification_token, "lark.verification_token")?;
+        decrypt_optional_secret(
+            &store,
+            &mut lk.verification_token,
+            "lark.verification_token",
+        )?;
     }
     if let Some(ref mut dt) = ch.dingtalk {
-        decrypt_optional_secret(&store, &mut Some(dt.client_secret.clone()), "dingtalk.client_secret")?;
-        dt.client_secret = store.decrypt(&dt.client_secret).unwrap_or_else(|_| dt.client_secret.clone());
+        decrypt_optional_secret(
+            &store,
+            &mut Some(dt.client_secret.clone()),
+            "dingtalk.client_secret",
+        )?;
+        dt.client_secret = store
+            .decrypt(&dt.client_secret)
+            .unwrap_or_else(|_| dt.client_secret.clone());
     }
     if let Some(ref mut qq) = ch.qq {
         decrypt_optional_secret(&store, &mut Some(qq.app_secret.clone()), "qq.app_secret")?;
-        qq.app_secret = store.decrypt(&qq.app_secret).unwrap_or_else(|_| qq.app_secret.clone());
+        qq.app_secret = store
+            .decrypt(&qq.app_secret)
+            .unwrap_or_else(|_| qq.app_secret.clone());
     }
 
     Ok(())
@@ -519,7 +557,11 @@ fn encrypt_config_secrets(config: &mut Config) -> Result<()> {
         encrypt_optional_secret(&store, &mut tok, "lark.app_secret")?;
         lk.app_secret = tok.unwrap_or_default();
         encrypt_optional_secret(&store, &mut lk.encrypt_key, "lark.encrypt_key")?;
-        encrypt_optional_secret(&store, &mut lk.verification_token, "lark.verification_token")?;
+        encrypt_optional_secret(
+            &store,
+            &mut lk.verification_token,
+            "lark.verification_token",
+        )?;
     }
     if let Some(ref mut dt) = ch.dingtalk {
         let mut tok = Some(dt.client_secret.clone());
@@ -1813,14 +1855,16 @@ impl Config {
             .await
             .unwrap_or(false);
         if had_existing_config {
-            fs::copy(&self.config_path, &backup_path)
-                .await
-                .with_context(|| {
-                    format!(
-                        "Failed to create config backup before atomic replace: {}",
-                        backup_path.display()
-                    )
-                })?;
+            // Copy the encrypted temp file as the backup, NOT the old on-disk
+            // config. The old config may still contain plaintext secrets from
+            // before encryption was wired in (#1900). Using the encrypted
+            // bytes ensures the .bak never leaks plaintext credentials.
+            fs::copy(&temp_path, &backup_path).await.with_context(|| {
+                format!(
+                    "Failed to create config backup before atomic replace: {}",
+                    backup_path.display()
+                )
+            })?;
         }
 
         if let Err(e) = fs::rename(&temp_path, &self.config_path).await {
