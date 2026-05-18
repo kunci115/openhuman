@@ -1435,8 +1435,7 @@ allowed_users = ["@admin"]
     cfg.save().await.unwrap();
 
     // The primary config must NOT contain the plaintext secret.
-    let raw_contents =
-        std::fs::read_to_string(&config_path).expect("config.toml should exist");
+    let raw_contents = std::fs::read_to_string(&config_path).expect("config.toml should exist");
     assert!(
         !raw_contents.contains(known_secret),
         "SECURITY BUG: secret '{known_secret}' found in plaintext in config.toml!"
