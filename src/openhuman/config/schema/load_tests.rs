@@ -1391,18 +1391,35 @@ fn migrate_legacy_inference_url_is_noop_when_inference_url_set() {
 ///
 /// Verifies that:
 /// 1. Channel tokens are NOT stored in plaintext on disk
-/// 2. The backup file (.bak) also contains encrypted data, not plaintext
+/// 2. The backup file (.bak) is encrypted even when overwriting a plaintext config
 /// 3. Loading the config back decrypts secrets correctly
 #[tokio::test]
 async fn config_secrets_encrypted_on_save_decrypted_on_load() {
     let tmp = tempfile::tempdir().unwrap();
     let config_path = tmp.path().join("config.toml");
-
-    // Build a config with a known channel secret.
     let known_secret = "my-telegram-bot-token-abc123";
+
+    // ── Phase 1: Simulate a pre-upgrade plaintext config on disk ──────
+    // Write a raw TOML file containing the secret in plaintext, just like
+    // a user who upgraded from a build before encryption was wired in.
+    // save() requires the workspace dir to exist, so create it first.
+    let workspace_dir = tmp.path().join("workspace");
+    std::fs::create_dir_all(&workspace_dir).unwrap();
+
+    let plaintext_toml = format!(
+        r#"[channels_config.telegram]
+bot_token = "{known_secret}"
+allowed_users = ["@admin"]
+"#
+    );
+    std::fs::write(&config_path, plaintext_toml.as_bytes()).unwrap();
+
+    // Build a Config pointing at the existing plaintext file.
+    // We set a fresh secret to force a changed value — the save path
+    // will encrypt this new value and write it to disk.
     let mut cfg = Config {
         config_path: config_path.clone(),
-        workspace_dir: tmp.path().join("workspace"),
+        workspace_dir,
         ..Default::default()
     };
     cfg.channels_config.telegram = Some(TelegramConfig {
@@ -1414,29 +1431,24 @@ async fn config_secrets_encrypted_on_save_decrypted_on_load() {
         mention_only: false,
     });
 
-    // Save to disk (should encrypt secrets).
+    // ── Phase 2: Save (encrypts + creates backup from old file) ──────
     cfg.save().await.unwrap();
 
-    // Read the raw file — secrets must NOT appear in plaintext.
+    // The primary config must NOT contain the plaintext secret.
     let raw_contents =
-        std::fs::read_to_string(&config_path).expect("config.toml should exist after save");
-
+        std::fs::read_to_string(&config_path).expect("config.toml should exist");
     assert!(
         !raw_contents.contains(known_secret),
-        "SECURITY BUG #1900: secret '{known_secret}' found in plaintext in config.toml!\n\
-         Raw contents:\n{raw_contents}"
+        "SECURITY BUG: secret '{known_secret}' found in plaintext in config.toml!"
     );
 
-    // Save again — this exercises the backup path.  On the second save,
-    // the existing config.toml is copied to config.toml.bak before the
-    // atomic replace.  We must verify that the backup also contains
-    // encrypted data, not the plaintext secret.
-    cfg.save().await.unwrap();
-
+    // The backup file is created by copying the old on-disk file BEFORE
+    // the atomic replace. Our fix ensures the backup comes from the
+    // encrypted bytes, NOT the plaintext original.
     let backup_path = config_path.with_extension("toml.bak");
     assert!(
         backup_path.exists(),
-        "backup file config.toml.bak should exist after second save"
+        "config.toml.bak should exist after overwriting an existing config"
     );
     let backup_contents = std::fs::read_to_string(&backup_path).unwrap();
     assert!(
@@ -1445,7 +1457,7 @@ async fn config_secrets_encrypted_on_save_decrypted_on_load() {
          Backup contents:\n{backup_contents}"
     );
 
-    // Reload the config through load_or_init — secrets must decrypt back.
+    // ── Phase 3: Reload — secrets must decrypt back correctly ────────
     let reloaded = load_or_init_for_workspace(tmp.path()).await;
     let reloaded_token = reloaded
         .channels_config
