@@ -1490,3 +1490,40 @@ allowed_users = ["@admin"]
          does not match original '{known_secret}'"
     );
 }
+
+/// Backwards-compatibility regression for #1900: a pre-upgrade `config.toml`
+/// that contains plaintext secrets (written by a build from before encryption
+/// was wired in) must continue to load with `secrets.encrypt = true`. The
+/// load path should hand the raw plaintext to channel code rather than
+/// erroring or returning a ciphertext placeholder. The next `save()` is what
+/// migrates the values to `enc2:` on disk.
+#[tokio::test]
+async fn plaintext_legacy_config_still_loads_with_encryption_enabled() {
+    let tmp = tempfile::tempdir().unwrap();
+    let config_path = tmp.path().join("config.toml");
+    let known_secret = "legacy-plaintext-bot-token-xyz789";
+
+    let plaintext_toml = format!(
+        r#"[secrets]
+encrypt = true
+
+[channels_config.telegram]
+bot_token = "{known_secret}"
+allowed_users = ["@admin"]
+"#
+    );
+    std::fs::write(&config_path, plaintext_toml.as_bytes()).unwrap();
+
+    let reloaded = load_or_init_for_workspace(tmp.path()).await;
+    let reloaded_token = reloaded
+        .channels_config
+        .telegram
+        .as_ref()
+        .map(|t| t.bot_token.as_str());
+    assert_eq!(
+        reloaded_token,
+        Some(known_secret),
+        "backwards-compat broken: legacy plaintext bot_token did not load as cleartext \
+         (got {reloaded_token:?})"
+    );
+}

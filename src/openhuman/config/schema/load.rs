@@ -395,52 +395,44 @@ fn decrypt_config_secrets(config: &mut Config, openhuman_dir: &Path) -> Result<(
     decrypt_optional_secret(&store, &mut config.api_key, "api_key")?;
 
     // Channels: decrypt every optional secret field.
+    //
+    // For required (non-Option<String>) secret fields we wrap the value in a
+    // temporary Option, run `decrypt_optional_secret`, then write back via
+    // `unwrap_or_default`. This mirrors the encrypt path and — crucially —
+    // propagates real decryption errors via `?` instead of silently handing
+    // ciphertext back to channel code on a corrupted `enc2:` value.
+    // Plaintext values (no `enc:`/`enc2:` prefix) are passed through
+    // untouched by `SecretStore::decrypt`, so configs written by pre-#1900
+    // builds continue to load correctly.
     let ch = &mut config.channels_config;
     if let Some(ref mut tg) = ch.telegram {
-        decrypt_optional_secret(
-            &store,
-            &mut Some(tg.bot_token.clone()),
-            "telegram.bot_token",
-        )?;
-        tg.bot_token = store
-            .decrypt(&tg.bot_token)
-            .unwrap_or_else(|_| tg.bot_token.clone());
+        let mut tok = Some(tg.bot_token.clone());
+        decrypt_optional_secret(&store, &mut tok, "telegram.bot_token")?;
+        tg.bot_token = tok.unwrap_or_default();
     }
     if let Some(ref mut d) = ch.discord {
-        decrypt_optional_secret(&store, &mut Some(d.bot_token.clone()), "discord.bot_token")?;
-        d.bot_token = store
-            .decrypt(&d.bot_token)
-            .unwrap_or_else(|_| d.bot_token.clone());
+        let mut tok = Some(d.bot_token.clone());
+        decrypt_optional_secret(&store, &mut tok, "discord.bot_token")?;
+        d.bot_token = tok.unwrap_or_default();
     }
     if let Some(ref mut s) = ch.slack {
-        decrypt_optional_secret(&store, &mut Some(s.bot_token.clone()), "slack.bot_token")?;
-        s.bot_token = store
-            .decrypt(&s.bot_token)
-            .unwrap_or_else(|_| s.bot_token.clone());
+        let mut tok = Some(s.bot_token.clone());
+        decrypt_optional_secret(&store, &mut tok, "slack.bot_token")?;
+        s.bot_token = tok.unwrap_or_default();
         decrypt_optional_secret(&store, &mut s.app_token, "slack.app_token")?;
     }
     if let Some(ref mut m) = ch.mattermost {
-        decrypt_optional_secret(
-            &store,
-            &mut Some(m.bot_token.clone()),
-            "mattermost.bot_token",
-        )?;
-        m.bot_token = store
-            .decrypt(&m.bot_token)
-            .unwrap_or_else(|_| m.bot_token.clone());
+        let mut tok = Some(m.bot_token.clone());
+        decrypt_optional_secret(&store, &mut tok, "mattermost.bot_token")?;
+        m.bot_token = tok.unwrap_or_default();
     }
     if let Some(ref mut w) = ch.webhook {
         decrypt_optional_secret(&store, &mut w.secret, "webhook.secret")?;
     }
     if let Some(ref mut mx) = ch.matrix {
-        decrypt_optional_secret(
-            &store,
-            &mut Some(mx.access_token.clone()),
-            "matrix.access_token",
-        )?;
-        mx.access_token = store
-            .decrypt(&mx.access_token)
-            .unwrap_or_else(|_| mx.access_token.clone());
+        let mut tok = Some(mx.access_token.clone());
+        decrypt_optional_secret(&store, &mut tok, "matrix.access_token")?;
+        mx.access_token = tok.unwrap_or_default();
     }
     if let Some(ref mut wa) = ch.whatsapp {
         decrypt_optional_secret(&store, &mut wa.access_token, "whatsapp.access_token")?;
@@ -448,10 +440,9 @@ fn decrypt_config_secrets(config: &mut Config, openhuman_dir: &Path) -> Result<(
         decrypt_optional_secret(&store, &mut wa.app_secret, "whatsapp.app_secret")?;
     }
     if let Some(ref mut lq) = ch.linq {
-        decrypt_optional_secret(&store, &mut Some(lq.api_token.clone()), "linq.api_token")?;
-        lq.api_token = store
-            .decrypt(&lq.api_token)
-            .unwrap_or_else(|_| lq.api_token.clone());
+        let mut tok = Some(lq.api_token.clone());
+        decrypt_optional_secret(&store, &mut tok, "linq.api_token")?;
+        lq.api_token = tok.unwrap_or_default();
     }
     if let Some(ref mut irc) = ch.irc {
         decrypt_optional_secret(&store, &mut irc.server_password, "irc.server_password")?;
@@ -459,10 +450,9 @@ fn decrypt_config_secrets(config: &mut Config, openhuman_dir: &Path) -> Result<(
         decrypt_optional_secret(&store, &mut irc.sasl_password, "irc.sasl_password")?;
     }
     if let Some(ref mut lk) = ch.lark {
-        decrypt_optional_secret(&store, &mut Some(lk.app_secret.clone()), "lark.app_secret")?;
-        lk.app_secret = store
-            .decrypt(&lk.app_secret)
-            .unwrap_or_else(|_| lk.app_secret.clone());
+        let mut tok = Some(lk.app_secret.clone());
+        decrypt_optional_secret(&store, &mut tok, "lark.app_secret")?;
+        lk.app_secret = tok.unwrap_or_default();
         decrypt_optional_secret(&store, &mut lk.encrypt_key, "lark.encrypt_key")?;
         decrypt_optional_secret(
             &store,
@@ -471,20 +461,14 @@ fn decrypt_config_secrets(config: &mut Config, openhuman_dir: &Path) -> Result<(
         )?;
     }
     if let Some(ref mut dt) = ch.dingtalk {
-        decrypt_optional_secret(
-            &store,
-            &mut Some(dt.client_secret.clone()),
-            "dingtalk.client_secret",
-        )?;
-        dt.client_secret = store
-            .decrypt(&dt.client_secret)
-            .unwrap_or_else(|_| dt.client_secret.clone());
+        let mut tok = Some(dt.client_secret.clone());
+        decrypt_optional_secret(&store, &mut tok, "dingtalk.client_secret")?;
+        dt.client_secret = tok.unwrap_or_default();
     }
     if let Some(ref mut qq) = ch.qq {
-        decrypt_optional_secret(&store, &mut Some(qq.app_secret.clone()), "qq.app_secret")?;
-        qq.app_secret = store
-            .decrypt(&qq.app_secret)
-            .unwrap_or_else(|_| qq.app_secret.clone());
+        let mut tok = Some(qq.app_secret.clone());
+        decrypt_optional_secret(&store, &mut tok, "qq.app_secret")?;
+        qq.app_secret = tok.unwrap_or_default();
     }
 
     Ok(())
